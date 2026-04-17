@@ -66,3 +66,21 @@ def logout():
         return jsonify({"message": "로그아웃 성공"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+    
+# 다른 api가 토큰 유효성을 물어보는 엔드포인트
+@auth_bp.route('/auth/verify', methods=['GET'])
+def verify_user():
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({"error": "No token provided"}), 401
+    
+    token = auth_header.split(' ')[1]
+    try:
+        # cognito_utils를 사용하여 토큰 검증
+        user_sub = cognito.verify_token(token)
+        if user_sub:
+            # 검증 성공 시 sub 반환
+            return jsonify({"sub": user_sub}), 200
+        return jsonify({"error": "Invalid token"}), 401
+    except Exception as e:
+        return jsonify({"error": str(e)}), 401

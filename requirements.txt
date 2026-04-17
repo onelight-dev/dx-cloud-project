@@ -1,0 +1,17 @@
+# Web Framework
+Flask
+flask-cors
+
+# Database
+psycopg2-binary
+
+# AWS & Auth
+boto3
+python-dotenv
+
+# Inter-service Communication 
+requests
+
+#etc
+uuid
+datetime

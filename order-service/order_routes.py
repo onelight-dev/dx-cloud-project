@@ -1,33 +1,53 @@
-from flask import Blueprint, request, jsonify
-from database import Database
-from cognito_utils import CognitoWrapper
-
+import os
+import requests
 import uuid
 from datetime import datetime
+from flask import Blueprint, request, jsonify
+from database import Database
+from dotenv import load_dotenv
+
+load_dotenv()
 
 orders_bp = Blueprint('orders', __name__)
 db = Database()
-cognito = CognitoWrapper("ap-northeast-2", "ap-northeast-2_o8WAIckGF", "5et3nig7v4s53uep0o85u7lduh", "e2rke9kufnh1p9ejct6aio6n1tchhn0284hnkkod7e7ssk0ovpf")
+
+# 인증 서비스의 주소 (로컬 테스트 시 5001 포트 가정)
+AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:5001")
+
+def verify_token_with_auth_service(auth_header):
+    """인증 서비스에 토큰 검증을 요청하는 헬퍼 함수"""
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return None
+    
+    try:
+        # Auth 서비스의 /auth/verify 엔드포인트 호출
+        response = requests.get(
+            f"{AUTH_SERVICE_URL}/auth/verify",
+            headers={"Authorization": auth_header},
+            timeout=3  # 타임아웃 설정 (인프라 안정성)
+        )
+        if response.status_code == 200:
+            return response.json().get("sub")
+        return None
+    except requests.exceptions.RequestException as e:
+        print(f"Auth Service Connection Error: {e}")
+        return None
 
 @orders_bp.route('', methods=['POST'])
 def create_order():
-    # 1. 토큰 검증 및 보안 처리
+    # 1. 인증 서버를 통한 토큰 검증
     auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({"error": "인증 토큰이 필요합니다."}), 401
-    
-    token = auth_header.split(' ')[1]
-    user_sub = cognito.verify_token(token)
+    user_sub = verify_token_with_auth_service(auth_header)
     
     if not user_sub:
-        return jsonify({"error": "유효하지 않은 토큰입니다."}), 401
+        return jsonify({"error": "인증에 실패했거나 인증 서버에 연결할 수 없습니다."}), 401
 
     # 2. DB 유저 ID 조회
     user = db.execute_query_one("SELECT id FROM users WHERE cognito_sub = %s", (user_sub,))
     if not user:
         return jsonify({"error": "사용자를 찾을 수 없습니다."}), 404
+    
     user_id = user['id']
-
     data = request.json # address_id, memo 등 포함
     address_id = data.get('address_id') #Postman에서 보낸 주소 ID
     
@@ -128,10 +148,12 @@ def create_order():
 
 @orders_bp.route('', methods=['GET'])
 def get_my_orders():
-    # 토큰 검증 로직 (공통)
+    # 토큰 검증
     auth_header = request.headers.get('Authorization')
-    token = auth_header.split(' ')[1]
-    user_sub = cognito.verify_token(token)
+    user_sub = verify_token_with_auth_service(auth_header)
+    if not user_sub:
+        return jsonify({"error": "Unauthorized"}), 401
+    
     user = db.execute_query_one("SELECT id FROM users WHERE cognito_sub = %s", (user_sub,))
 
     # 사용자의 주문 목록을 최신순으로 조회
@@ -146,10 +168,12 @@ def get_my_orders():
 
 @orders_bp.route('/<uuid:order_id>', methods=['GET'])
 def get_order_detail(order_id):
-    # 토큰 검증 로직 (공통)
+    # 토큰 검증
     auth_header = request.headers.get('Authorization')
-    token = auth_header.split(' ')[1]
-    user_sub = cognito.verify_token(token)
+    user_sub = verify_token_with_auth_service(auth_header)
+    if not user_sub:
+        return jsonify({"error": "Unauthorized"}), 401
+    
     user = db.execute_query_one("SELECT id FROM users WHERE cognito_sub = %s", (user_sub,))
 
     # 주문 기본 정보 조회
@@ -172,10 +196,12 @@ def get_order_detail(order_id):
 
 @orders_bp.route('/<uuid:order_id>', methods=['PATCH'])
 def update_order(order_id):
-    # 토큰 검증 로직 (공통)
+    # 토큰 검증
     auth_header = request.headers.get('Authorization')
-    token = auth_header.split(' ')[1]
-    user_sub = cognito.verify_token(token)
+    user_sub = verify_token_with_auth_service(auth_header)
+    if not user_sub:
+        return jsonify({"error": "Unauthorized"}), 401
+    
     user = db.execute_query_one("SELECT id FROM users WHERE cognito_sub = %s", (user_sub,))
 
     data = request.json
@@ -202,10 +228,12 @@ def update_order(order_id):
 
 @orders_bp.route('/<uuid:order_id>/cancel', methods=['POST'])
 def cancel_order(order_id):
-    # 토큰 검증 로직 (공통)
+    # 토큰 검증
     auth_header = request.headers.get('Authorization')
-    token = auth_header.split(' ')[1]
-    user_sub = cognito.verify_token(token)
+    user_sub = verify_token_with_auth_service(auth_header)
+    if not user_sub:
+        return jsonify({"error": "Unauthorized"}), 401
+    
     user = db.execute_query_one("SELECT id FROM users WHERE cognito_sub = %s", (user_sub,))
     
     # 상태를 CANCELLED로 변경
