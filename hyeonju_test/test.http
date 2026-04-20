@@ -1,0 +1,55 @@
+### 회원가입
+POST http://127.0.0.1:5000/api/v1/auth/signup
+Content-Type: application/json
+
+{
+  "login_id": "hj1234",
+  "password": "Abcd1234!",
+  "password_confirm": "Abcd1234!",
+  "user_name": "강현주",
+  "email": "hj@example.com",
+  "phone": "010-1234-5678",
+  "birth_date": "2000-01-01",
+  "gender": "F"
+}
+
+### 로그인
+POST http://127.0.0.1:5000/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "login_id": "hj1234",
+  "password": "Abcd1234!"
+}
+
+### 내 정보 조회
+GET http://127.0.0.1:5000/api/v1/users/me
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc3NjMyMDI4OCwianRpIjoiYjgwYWQzOTQtZTQ4My00MmQ3LTlmNjUtMDk4YTZjY2U4ZmFiIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjEiLCJuYmYiOjE3NzYzMjAyODgsImNzcmYiOiI5ZjNkNGM3NS0yNGRlLTQ2MzYtYjJlZC1lYTYxMjdmN2UyNTkiLCJleHAiOjE3NzYzMjM4ODh9.5XNqzw4bazLODTrHk9r9QIqO3Apz7PnUQmLGL-TbH74
+
+### 회원정보 수정
+PATCH http://127.0.0.1:5000/api/v1/users/me
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc3NjMyMDI4OCwianRpIjoiYjgwYWQzOTQtZTQ4My00MmQ3LTlmNjUtMDk4YTZjY2U4ZmFiIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjEiLCJuYmYiOjE3NzYzMjAyODgsImNzcmYiOiI5ZjNkNGM3NS0yNGRlLTQ2MzYtYjJlZC1lYTYxMjdmN2UyNTkiLCJleHAiOjE3NzYzMjM4ODh9.5XNqzw4bazLODTrHk9r9QIqO3Apz7PnUQmLGL-TbH74
+
+{
+  "user_name": "주랑이",
+  "phone": "010-2222-4444"
+}
+
+### 배송지 등록
+POST http://127.0.0.1:5000/api/v1/users/me/addresses
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc3NjMyMDI4OCwianRpIjoiYjgwYWQzOTQtZTQ4My00MmQ3LTlmNjUtMDk4YTZjY2U4ZmFiIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjEiLCJuYmYiOjE3NzYzMjAyODgsImNzcmYiOiI5ZjNkNGM3NS0yNGRlLTQ2MzYtYjJlZC1lYTYxMjdmN2UyNTkiLCJleHAiOjE3NzYzMjM4ODh9.5XNqzw4bazLODTrHk9r9QIqO3Apz7PnUQmLGL-TbH74
+
+{
+  "recipient_name": "강현주",
+  "recipient_phone": "010-1234-5678",
+  "zip_code": "12345",
+  "address1": "서울 강남구 테헤란로",
+  "address2": "101동 202호",
+  "is_default": true
+}
+
+### 배송지 조회
+GET http://127.0.0.1:5000/api/v1/users/me/addresses
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc3NjMyMDI4OCwianRpIjoiYjgwYWQzOTQtZTQ4My00MmQ3LTlmNjUtMDk4YTZjY2U4ZmFiIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjEiLCJuYmYiOjE3NzYzMjAyODgsImNzcmYiOiI5ZjNkNGM3NS0yNGRlLTQ2MzYtYjJlZC1lYTYxMjdmN2UyNTkiLCJleHAiOjE3NzYzMjM4ODh9.5XNqzw4bazLODTrHk9r9QIqO3Apz7PnUQmLGL-TbH74
