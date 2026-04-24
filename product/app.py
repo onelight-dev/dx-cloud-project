@@ -2,6 +2,7 @@ import atexit
 from flask import Flask, jsonify
 from database import init_pool, close_pool
 from routes.product import bp as product_bp
+from routes.outfit  import bp as outfit_bp
 
 
 def create_app() -> Flask:
@@ -14,6 +15,7 @@ def create_app() -> Flask:
 
     # 블루프린트 등록
     app.register_blueprint(product_bp)
+    app.register_blueprint(outfit_bp)
 
     # 전역 에러 핸들러
     @app.errorhandler(404)

@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from database import get_cursor, get_db
-from services.sftp_service import upload_image, delete_image
+from services.s3_service import upload_image, delete_image
 from psycopg2.extras import RealDictCursor
 import psycopg2
 
