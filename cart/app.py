@@ -7,7 +7,7 @@ from common.responses import error
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
-    app.register_blueprint(cart_bp, url_prefix="/")
+    app.register_blueprint(cart_bp)
 
     @app.get("/health")
     def health():

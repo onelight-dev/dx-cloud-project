@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-app.register_blueprint(orders_bp, url_prefix='/')
+app.register_blueprint(orders_bp)
 
 @app.errorhandler(404)
 def not_found(e):

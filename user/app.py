@@ -8,7 +8,7 @@ from common.responses import error
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
-    app.register_blueprint(users_bp, url_prefix="/")
+    app.register_blueprint(users_bp)
     app.register_blueprint(addresses_bp, url_prefix="/addresses")
 
     @app.get("/health")
