@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from database import get_cursor
+from services.s3_service import upload_image
 import psycopg2
 
 bp = Blueprint("outfit", __name__, url_prefix="/outfit")
@@ -47,15 +48,18 @@ def list_outfits():
             f"""
             SELECT o.id, o.name, o.slug, o.description,
                    o.discount_rate, o.is_active, o.created_at, o.updated_at,
-                   (
-                       SELECT pi.image_url
-                       FROM outfit_items oi2
-                       JOIN product_images pi
-                         ON pi.product_id = oi2.product_id
-                        AND pi.is_thumbnail = TRUE
-                       WHERE oi2.outfit_id = o.id
-                       ORDER BY oi2.sort_order, pi.sort_order
-                       LIMIT 1
+                   COALESCE(
+                       o.thumbnail_url,
+                       (
+                           SELECT pi.image_url
+                           FROM outfit_items oi2
+                           JOIN product_images pi
+                             ON pi.product_id = oi2.product_id
+                            AND pi.is_thumbnail = TRUE
+                           WHERE oi2.outfit_id = o.id
+                           ORDER BY oi2.sort_order, pi.sort_order
+                           LIMIT 1
+                       )
                    ) AS thumbnail_url,
                    (
                        SELECT COUNT(*)
@@ -97,7 +101,7 @@ def get_outfit(outfit_id):
             """
             SELECT id, name, slug, description,
                    discount_rate, is_active, is_deleted,
-                   created_at, updated_at
+                   thumbnail_url, created_at, updated_at
             FROM outfits
             WHERE id = %s AND is_deleted = FALSE
             """,
@@ -374,3 +378,47 @@ def delete_outfit_item(outfit_id, item_id):
         return jsonify({"error": "코디 구성 상품을 찾을 수 없습니다."}), 404
 
     return "", 204
+
+
+# ─────────────────────────────────────────────
+# POST /outfit/<id>/thumbnail
+# Content-Type: multipart/form-data
+#   image* → 이미지 파일
+# ─────────────────────────────────────────────
+@bp.post("/<uuid:outfit_id>/thumbnail")
+def upload_outfit_thumbnail(outfit_id):
+    oid = str(outfit_id)
+
+    with get_cursor() as cur:
+        cur.execute(
+            "SELECT id FROM outfits WHERE id = %s AND is_deleted = FALSE",
+            (oid,),
+        )
+        if not cur.fetchone():
+            return jsonify({"error": "코디를 찾을 수 없습니다."}), 404
+
+    file = request.files.get("image")
+    if not file:
+        return jsonify({"error": "image 파일이 필요합니다."}), 400
+
+    try:
+        image_url = upload_image(file)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    with get_cursor(commit=True) as cur:
+        cur.execute(
+            """
+            UPDATE outfits
+            SET thumbnail_url = %s, updated_at = NOW()
+            WHERE id = %s AND is_deleted = FALSE
+            RETURNING thumbnail_url
+            """,
+            (image_url, oid),
+        )
+        row = cur.fetchone()
+
+    if not row:
+        return jsonify({"error": "코디를 찾을 수 없습니다."}), 404
+
+    return jsonify({"thumbnail_url": row["thumbnail_url"]}), 200

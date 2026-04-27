@@ -1,12 +1,14 @@
 import atexit
+import os
 from flask import Flask, jsonify
+from flask_cors import CORS
 from database import init_pool, close_pool
 from routes.category import bp as category_bp
 
 
 def create_app() -> Flask:
     app = Flask(__name__)
-
+    CORS(app, origins="*")
     # DB 커넥션 풀 초기화 (앱 시작 시 1회)
     init_pool()
     # 프로세스 종료 시 풀을 닫음 (요청마다 닫히지 않도록 atexit 사용)
@@ -33,4 +35,4 @@ def create_app() -> Flask:
 
 if __name__ == "__main__":
     app = create_app()
-    app.run(debug=True, host="0.0.0.0", port=5001)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5001)), debug=False)

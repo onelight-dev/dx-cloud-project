@@ -1,0 +1,270 @@
+{% extends "admin/base.html" %}
+{% block title %} · 배너{% endblock %}
+{% block nav_banners %}active{% endblock %}
+{% block page_title %}<i class="bi bi-images me-2"></i>배너 관리{% endblock %}
+{% block header_actions %}
+  <button class="btn btn-sm btn-primary" onclick="openCreate()">
+    <i class="bi bi-plus-lg me-1"></i>배너 추가
+  </button>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width:80px">이미지</th>
+            <th>제목</th>
+            <th>연결 코디</th>
+            <th>링크 URL</th>
+            <th>순서</th>
+            <th>상태</th>
+            <th style="width:160px"></th>
+          </tr>
+        </thead>
+        <tbody id="tBody">
+          <tr><td colspan="7" class="text-center text-muted py-5">로딩 중...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 생성/수정 모달 -->
+<div class="modal fade" id="formModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold" id="modalTitle">배너 추가</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="fId">
+        <div class="row g-3">
+          <div class="col-8">
+            <label class="form-label small fw-semibold">제목 <span class="text-danger">*</span></label>
+            <input class="form-control form-control-sm" id="fTitle" placeholder="배너 제목">
+          </div>
+          <div class="col-4">
+            <label class="form-label small fw-semibold">정렬 순서</label>
+            <input type="number" class="form-control form-control-sm" id="fSort" value="0" min="0">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">연결 코디</label>
+            <select class="form-select form-select-sm" id="fOutfit">
+              <option value="">없음 (링크 URL 사용)</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">링크 URL <span class="text-muted small">(코디 미선택 시)</span></label>
+            <input class="form-control form-control-sm" id="fLink" placeholder="https://...">
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="fActive" checked>
+              <label class="form-check-label small" for="fActive">활성화</label>
+            </div>
+          </div>
+          <!-- 이미지 업로드 (수정 시) -->
+          <div class="col-12" id="imageSection" style="display:none">
+            <label class="form-label small fw-semibold">배너 이미지</label>
+            <div class="mb-2">
+              <img id="imagePreview" src="" alt="배너 이미지" style="max-width:200px;max-height:100px;object-fit:cover;border-radius:4px;border:1px solid #dee2e6;display:none">
+              <div id="imagePlaceholder" class="d-flex align-items-center justify-content-center bg-light text-muted" style="width:200px;height:80px;border-radius:4px;border:1px solid #dee2e6;font-size:12px">
+                <i class="bi bi-image me-1"></i>이미지 없음
+              </div>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+              <input type="file" class="form-control form-control-sm" id="imageFile" accept="image/*" style="max-width:240px">
+              <button type="button" class="btn btn-sm btn-outline-primary" id="imageUploadBtn" onclick="uploadBannerImage()">
+                <i class="bi bi-upload me-1"></i>업로드
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button class="btn btn-sm btn-primary" id="submitBtn" onclick="submitForm()">저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 삭제 확인 모달 -->
+<div class="modal fade" id="delModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-body text-center py-4">
+        <i class="bi bi-exclamation-triangle text-danger fs-2 d-block mb-2"></i>
+        <p class="fw-semibold mb-1">배너를 삭제할까요?</p>
+        <p class="text-muted small mb-0" id="delName"></p>
+      </div>
+      <div class="modal-footer py-2 justify-content-center">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button class="btn btn-sm btn-danger" id="delConfirmBtn">삭제</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let editMode = false;
+const formModal = new bootstrap.Modal(document.getElementById('formModal'));
+const delModal  = new bootstrap.Modal(document.getElementById('delModal'));
+
+async function loadBanners() {
+  try {
+    const res = await api('GET', '/admin/api/banners');
+    renderTable(res.data || []);
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function renderTable(banners) {
+  const tb = document.getElementById('tBody');
+  if (!banners.length) {
+    tb.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5">배너가 없습니다.</td></tr>';
+    return;
+  }
+  tb.innerHTML = banners.map(b => `
+    <tr>
+      <td>${b.image_url
+        ? `<img src="${esc(b.image_url)}" class="img-thumb">`
+        : `<div class="img-thumb bg-light d-flex align-items-center justify-content-center text-muted" style="border-radius:4px;border:1px solid #dee2e6;font-size:10px"><i class="bi bi-image"></i></div>`}</td>
+      <td class="fw-semibold">${esc(b.title)}</td>
+      <td><code class="small text-muted">${b.outfit_id ? esc(b.outfit_id) : '-'}</code></td>
+      <td class="small text-muted" style="max-width:160px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${b.link_url ? esc(b.link_url) : '-'}</td>
+      <td class="text-center">${b.sort_order}</td>
+      <td>${b.is_active
+        ? '<span class="badge status-active">활성</span>'
+        : '<span class="badge bg-secondary">비활성</span>'}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-primary py-0 me-1" onclick="openEdit('${b.id}')">
+          <i class="bi bi-pencil"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-danger py-0" onclick="openDelete('${b.id}','${esc(b.title)}')">
+          <i class="bi bi-trash"></i>
+        </button>
+      </td>
+    </tr>`).join('');
+}
+
+async function loadOutfitOptions(selectedId) {
+  try {
+    const res = await api('GET', '/admin/api/outfits?limit=100');
+    const sel = document.getElementById('fOutfit');
+    sel.innerHTML = '<option value="">없음 (링크 URL 사용)</option>';
+    (res.data || []).forEach(o => {
+      const opt = document.createElement('option');
+      opt.value = o.id;
+      opt.textContent = o.name;
+      if (o.id === selectedId) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  } catch(e) { /* 무시 */ }
+}
+
+function clearForm() {
+  ['fId','fTitle','fLink'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('fSort').value = '0';
+  document.getElementById('fActive').checked = true;
+  document.getElementById('imageSection').style.display = 'none';
+  document.getElementById('imagePreview').style.display = 'none';
+  document.getElementById('imagePlaceholder').style.display = 'flex';
+  document.getElementById('imageFile').value = '';
+}
+
+function openCreate() {
+  editMode = false;
+  clearForm();
+  document.getElementById('modalTitle').textContent = '배너 추가';
+  loadOutfitOptions(null);
+  formModal.show();
+}
+
+async function openEdit(id) {
+  try {
+    const res = await api('GET', '/admin/api/banners');
+    const b = (res.data || []).find(x => x.id === id);
+    if (!b) { showToast('배너를 찾을 수 없습니다.', 'error'); return; }
+    editMode = true;
+    clearForm();
+    document.getElementById('modalTitle').textContent = '배너 수정';
+    document.getElementById('fId').value     = b.id;
+    document.getElementById('fTitle').value  = b.title;
+    document.getElementById('fSort').value   = b.sort_order ?? 0;
+    document.getElementById('fLink').value   = b.link_url ?? '';
+    document.getElementById('fActive').checked = b.is_active;
+    document.getElementById('imageSection').style.display = 'block';
+    if (b.image_url) {
+      document.getElementById('imagePreview').src = b.image_url;
+      document.getElementById('imagePreview').style.display = 'block';
+      document.getElementById('imagePlaceholder').style.display = 'none';
+    }
+    await loadOutfitOptions(b.outfit_id);
+    formModal.show();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function submitForm() {
+  const btn = document.getElementById('submitBtn');
+  const payload = {
+    title:      document.getElementById('fTitle').value.trim(),
+    outfit_id:  document.getElementById('fOutfit').value || null,
+    link_url:   document.getElementById('fLink').value.trim() || null,
+    sort_order: parseInt(document.getElementById('fSort').value) || 0,
+    is_active:  document.getElementById('fActive').checked,
+  };
+  if (!payload.title) { showToast('제목은 필수입니다.', 'error'); return; }
+  btn.disabled = true;
+  try {
+    const id = document.getElementById('fId').value;
+    if (editMode) { await api('PUT', `/admin/api/banners/${id}`, payload); showToast('수정되었습니다.'); }
+    else          { await api('POST', '/admin/api/banners', payload);      showToast('생성되었습니다.'); }
+    formModal.hide();
+    loadBanners();
+  } catch(e) { showToast(e.message, 'error'); }
+  finally { btn.disabled = false; }
+}
+
+async function uploadBannerImage() {
+  const id = document.getElementById('fId').value;
+  if (!id) { showToast('배너를 먼저 저장해주세요.', 'error'); return; }
+  const file = document.getElementById('imageFile').files[0];
+  if (!file) { showToast('이미지 파일을 선택해주세요.', 'error'); return; }
+  const btn = document.getElementById('imageUploadBtn');
+  btn.disabled = true;
+  try {
+    const formData = new FormData();
+    formData.append('image', file);
+    const res = await api('POST', `/admin/api/banners/${id}/image`, formData, true);
+    document.getElementById('imagePreview').src = res.image_url;
+    document.getElementById('imagePreview').style.display = 'block';
+    document.getElementById('imagePlaceholder').style.display = 'none';
+    showToast('이미지가 업로드되었습니다.');
+    loadBanners();
+  } catch(e) { showToast(e.message, 'error'); }
+  finally { btn.disabled = false; }
+}
+
+function openDelete(id, title) {
+  document.getElementById('delName').textContent = title;
+  const btn = document.getElementById('delConfirmBtn');
+  btn.onclick = async () => {
+    btn.disabled = true;
+    try {
+      await api('DELETE', `/admin/api/banners/${id}`);
+      delModal.hide(); showToast('삭제되었습니다.'); loadBanners();
+    } catch(e) { showToast(e.message, 'error'); }
+    finally { btn.disabled = false; }
+  };
+  delModal.show();
+}
+
+loadBanners();
+</script>
+{% endblock %}

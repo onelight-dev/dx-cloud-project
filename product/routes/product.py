@@ -25,11 +25,28 @@ def _stringify_uuids(row: dict, *keys) -> dict:
 # ─────────────────────────────────────────────
 @bp.get("")
 def list_products():
-    category_id = request.args.get("category_id")
-    search      = request.args.get("search", "").strip()
-    page        = max(1, int(request.args.get("page", 1)))
-    limit       = min(100, max(1, int(request.args.get("limit", 20))))
-    offset      = (page - 1) * limit
+    category_id   = request.args.get("category_id")
+    category_slug = request.args.get("cat")
+    search        = request.args.get("search", "").strip()
+    page          = max(1, int(request.args.get("page", 1)))
+    limit         = min(100, max(1, int(request.args.get("limit", 20))))
+    offset        = (page - 1) * limit
+
+    # slug가 전달된 경우 id로 변환
+    if category_slug and not category_id:
+        with get_cursor() as cur:
+            cur.execute(
+                "SELECT id FROM categories WHERE slug = %s AND is_active = TRUE",
+                (category_slug,),
+            )
+            row = cur.fetchone()
+        if row:
+            category_id = str(row["id"])
+        else:
+            return jsonify({
+                "data": [],
+                "pagination": {"total": 0, "page": page, "limit": limit, "total_pages": 0},
+            }), 200
 
     conditions = ["p.is_deleted = FALSE"]
     params: list = []

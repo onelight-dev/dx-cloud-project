@@ -7,7 +7,7 @@ load_dotenv()
 class Config:
     SERVICE_NAME = os.getenv("SERVICE_NAME", "spoffy-service")
     PORT = int(os.getenv("PORT", "5000"))
-    DEBUG = os.getenv("DEBUG", "true").lower() == "true"
+    DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
     DB_HOST = os.getenv("DB_HOST", "localhost")
     DB_PORT = int(os.getenv("DB_PORT", "5432"))

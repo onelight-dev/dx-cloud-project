@@ -31,6 +31,16 @@ def products_page():
     return render_template("admin/products.html")
 
 
+@bp.get("/outfits")
+def outfits_page():
+    return render_template("admin/outfits.html")
+
+
+@bp.get("/banners")
+def banners_page():
+    return render_template("admin/banners.html")
+
+
 @bp.get("/orders")
 def orders_page():
     return render_template("admin/orders.html")

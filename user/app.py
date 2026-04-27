@@ -1,6 +1,6 @@
 from flask import Flask
+from flask_cors import CORS
 from config import Config
-from extensions import cors
 from routes.users import users_bp
 from routes.addresses import addresses_bp
 from common.responses import error
@@ -8,9 +8,8 @@ from common.responses import error
 
 def create_app():
     app = Flask(__name__)
+    CORS(app, origins="*")
     app.config.from_object(Config)
-    cors.init_app(app)
-
     app.register_blueprint(users_bp, url_prefix="/")
     app.register_blueprint(addresses_bp, url_prefix="/addresses")
 

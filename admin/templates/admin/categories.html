@@ -1,0 +1,263 @@
+{% extends "admin/base.html" %}
+{% block title %} · 카테고리{% endblock %}
+{% block nav_categories %}active{% endblock %}
+{% block page_title %}<i class="bi bi-tags me-2"></i>카테고리 관리{% endblock %}
+{% block header_actions %}
+  <button class="btn btn-sm btn-primary" onclick="openCreate()">
+    <i class="bi bi-plus-lg me-1"></i>카테고리 추가
+  </button>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-3">
+  <div class="card-body py-2 d-flex gap-2 align-items-center">
+    <input id="q" class="form-control form-control-sm" placeholder="이름 또는 slug 검색" style="max-width:260px"
+           onkeydown="if(event.key==='Enter') applyFilter()">
+    <select id="activeFilter" class="form-select form-select-sm" style="max-width:130px">
+      <option value="">전체</option><option value="true">활성</option><option value="false">비활성</option>
+    </select>
+    <button class="btn btn-sm btn-primary" onclick="applyFilter()"><i class="bi bi-search me-1"></i>검색</button>
+    <span class="ms-auto text-muted small" id="totalLabel"></span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>이름</th><th>Slug</th><th>상위 카테고리</th><th>정렬</th><th>상태</th><th>생성일</th>
+            <th style="width:130px"></th>
+          </tr>
+        </thead>
+        <tbody id="tBody">
+          <tr><td colspan="7" class="text-center text-muted py-5">로딩 중...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<div id="pgWrap" class="mt-3 d-flex justify-content-center"></div>
+
+<!-- 생성/수정 모달 -->
+<div class="modal fade" id="formModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold" id="modalTitle">카테고리 추가</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="fId">
+        <div class="row g-2 mb-3">
+          <div class="col-8">
+            <label class="form-label small fw-semibold">이름 <span class="text-danger">*</span></label>
+            <input class="form-control form-control-sm" id="fName" placeholder="아우터">
+          </div>
+          <div class="col-4">
+            <label class="form-label small fw-semibold">정렬 순서</label>
+            <input type="number" class="form-control form-control-sm" id="fSort" value="0" min="0">
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Slug <span class="text-danger">*</span></label>
+          <input class="form-control form-control-sm" id="fSlug" placeholder="outer">
+          <div class="form-text">URL에 사용되는 고유 식별자 (영문·숫자·하이픈)</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">상위 카테고리</label>
+          <select class="form-select form-select-sm" id="fParent">
+            <option value="">없음 (최상위)</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">설명</label>
+          <textarea class="form-control form-control-sm" id="fDesc" rows="2"></textarea>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="fActive" checked>
+          <label class="form-check-label small" for="fActive">활성화</label>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button class="btn btn-sm btn-primary" id="submitBtn" onclick="submitForm()">저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 삭제 확인 모달 -->
+<div class="modal fade" id="delModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-body text-center py-4">
+        <i class="bi bi-exclamation-triangle text-danger fs-2 d-block mb-2"></i>
+        <p class="mb-1 fw-semibold">카테고리를 삭제할까요?</p>
+        <p class="text-muted small mb-0" id="delName"></p>
+      </div>
+      <div class="modal-footer py-2 justify-content-center">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button class="btn btn-sm btn-danger" id="delConfirmBtn">삭제</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allCategories = [];
+let editMode = false;
+const formModal = new bootstrap.Modal(document.getElementById('formModal'));
+const delModal  = new bootstrap.Modal(document.getElementById('delModal'));
+
+async function loadCategories() {
+  try {
+    const res = await api('GET', '/admin/api/categories');
+    allCategories = res.data;
+    applyFilter();
+    document.getElementById('totalLabel').textContent = `총 ${allCategories.length}개`;
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function applyFilter() {
+  const q      = document.getElementById('q').value.trim().toLowerCase();
+  const active = document.getElementById('activeFilter').value;
+  let filtered = allCategories;
+  if (q)      filtered = filtered.filter(c => c.name.toLowerCase().includes(q) || c.slug.includes(q));
+  if (active) filtered = filtered.filter(c => String(c.is_active) === active);
+  renderTable(filtered);
+}
+
+function parentName(id) {
+  if (!id) return '-';
+  const p = allCategories.find(c => c.id === id);
+  return p ? esc(p.name) : '-';
+}
+
+function renderTable(cats) {
+  const tb = document.getElementById('tBody');
+  if (!cats.length) {
+    tb.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5">데이터가 없습니다.</td></tr>';
+    return;
+  }
+  tb.innerHTML = cats.map(c => `
+    <tr>
+      <td><span class="fw-semibold">${esc(c.name)}</span></td>
+      <td><code class="text-muted small">${esc(c.slug)}</code></td>
+      <td>${parentName(c.parent_id)}</td>
+      <td>${c.sort_order}</td>
+      <td>${c.is_active
+        ? '<span class="badge status-active">활성</span>'
+        : '<span class="badge bg-secondary">비활성</span>'}</td>
+      <td class="text-muted small">${fmtDate(c.created_at)}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-primary py-0 me-1" onclick="openEdit('${c.id}')">
+          <i class="bi bi-pencil"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-danger py-0" onclick="openDelete('${c.id}','${esc(c.name)}')">
+          <i class="bi bi-trash"></i>
+        </button>
+      </td>
+    </tr>`).join('');
+}
+
+function populateParentSelect(excludeId) {
+  const sel = document.getElementById('fParent');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">없음 (최상위)</option>' +
+    allCategories.filter(c => c.id !== excludeId)
+      .map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  sel.value = prev;
+}
+
+function clearForm() {
+  ['fId','fName','fSlug','fDesc'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('fSort').value  = '0';
+  document.getElementById('fParent').value = '';
+  document.getElementById('fActive').checked = true;
+}
+
+function openCreate() {
+  editMode = false;
+  clearForm();
+  populateParentSelect(null);
+  document.getElementById('modalTitle').textContent = '카테고리 추가';
+  formModal.show();
+}
+
+async function openEdit(id) {
+  try {
+    const res = await api('GET', `/admin/api/categories/${id}`);
+    const c = res.data;
+    editMode = true;
+    clearForm();
+    populateParentSelect(id);
+    document.getElementById('modalTitle').textContent = '카테고리 수정';
+    document.getElementById('fId').value     = c.id;
+    document.getElementById('fName').value   = c.name;
+    document.getElementById('fSlug').value   = c.slug;
+    document.getElementById('fSort').value   = c.sort_order;
+    document.getElementById('fParent').value = c.parent_id ?? '';
+    document.getElementById('fDesc').value   = c.description ?? '';
+    document.getElementById('fActive').checked = c.is_active;
+    formModal.show();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function submitForm() {
+  const btn = document.getElementById('submitBtn');
+  const payload = {
+    name:        document.getElementById('fName').value.trim(),
+    slug:        document.getElementById('fSlug').value.trim(),
+    sort_order:  parseInt(document.getElementById('fSort').value) || 0,
+    parent_id:   document.getElementById('fParent').value || null,
+    description: document.getElementById('fDesc').value.trim() || null,
+    is_active:   document.getElementById('fActive').checked,
+  };
+  if (!payload.name || !payload.slug) { showToast('이름과 slug는 필수입니다.', 'error'); return; }
+  btn.disabled = true;
+  try {
+    const id = document.getElementById('fId').value;
+    if (editMode) {
+      await api('PUT', `/admin/api/categories/${id}`, payload);
+      showToast('수정되었습니다.');
+    } else {
+      await api('POST', '/admin/api/categories', payload);
+      showToast('생성되었습니다.');
+    }
+    formModal.hide();
+    loadCategories();
+  } catch(e) { showToast(e.message, 'error'); }
+  finally { btn.disabled = false; }
+}
+
+function openDelete(id, name) {
+  document.getElementById('delName').textContent = name;
+  const btn = document.getElementById('delConfirmBtn');
+  btn.onclick = async () => {
+    btn.disabled = true;
+    try {
+      await api('DELETE', `/admin/api/categories/${id}`);
+      delModal.hide();
+      showToast('삭제되었습니다.');
+      loadCategories();
+    } catch(e) { showToast(e.message, 'error'); }
+    finally { btn.disabled = false; }
+  };
+  delModal.show();
+}
+
+document.getElementById('fName').addEventListener('input', function() {
+  if (!editMode) {
+    document.getElementById('fSlug').value = this.value.toLowerCase().trim()
+      .replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
+  }
+});
+
+document.getElementById('activeFilter').addEventListener('change', applyFilter);
+loadCategories();
+</script>
+{% endblock %}

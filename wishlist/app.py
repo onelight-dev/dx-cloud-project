@@ -1,15 +1,14 @@
 from flask import Flask
+from flask_cors import CORS
 from config import Config
-from extensions import cors
 from routes.wishlist import wishlist_bp
 from common.responses import error
 
 
 def create_app():
     app = Flask(__name__)
+    CORS(app, origins="*")
     app.config.from_object(Config)
-    cors.init_app(app)
-
     app.register_blueprint(wishlist_bp, url_prefix="/")
 
     @app.get("/health")

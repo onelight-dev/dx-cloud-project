@@ -1,13 +1,16 @@
 import atexit
+import os
 from flask import Flask, jsonify
+from flask_cors import CORS
 from database import init_pool, close_pool
 from routes.product import bp as product_bp
 from routes.outfit  import bp as outfit_bp
+from routes.banner  import bp as banner_bp
 
 
 def create_app() -> Flask:
     app = Flask(__name__)
-
+    CORS(app, origins="*")
     # DB 커넥션 풀 초기화 (앱 시작 시 1회)
     init_pool()
     # 프로세스 종료 시 풀을 닫음 (요청마다 닫히지 않도록 atexit 사용)
@@ -16,6 +19,7 @@ def create_app() -> Flask:
     # 블루프린트 등록
     app.register_blueprint(product_bp)
     app.register_blueprint(outfit_bp)
+    app.register_blueprint(banner_bp)
 
     # 전역 에러 핸들러
     @app.errorhandler(404)
@@ -35,4 +39,4 @@ def create_app() -> Flask:
 
 if __name__ == "__main__":
     app = create_app()
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=False)

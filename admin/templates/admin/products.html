@@ -1,0 +1,752 @@
+{% extends "admin/base.html" %}
+{% block title %} · 상품{% endblock %}
+{% block nav_products %}active{% endblock %}
+{% block page_title %}<i class="bi bi-box-seam me-2"></i>상품 관리{% endblock %}
+{% block header_actions %}
+  <button class="btn btn-sm btn-primary" onclick="openCreate()">
+    <i class="bi bi-plus-lg me-1"></i>상품 추가
+  </button>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-3">
+  <div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
+    <input id="q" class="form-control form-control-sm" placeholder="상품명 검색" style="max-width:220px"
+           onkeydown="if(event.key==='Enter') loadProducts()">
+    <select id="catFilter" class="form-select form-select-sm" style="max-width:170px">
+      <option value="">전체 카테고리</option>
+    </select>
+    <select id="activeFilter" class="form-select form-select-sm" style="max-width:120px">
+      <option value="">전체</option><option value="true">활성</option><option value="false">비활성</option>
+    </select>
+    <button class="btn btn-sm btn-primary" onclick="loadProducts()"><i class="bi bi-search me-1"></i>검색</button>
+    <span class="ms-auto text-muted small" id="totalLabel"></span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width:56px">썸네일</th><th>상품명</th><th>카테고리</th>
+            <th>기본가</th><th>할인가</th><th>상태</th><th>등록일</th>
+            <th style="width:200px"></th>
+          </tr>
+        </thead>
+        <tbody id="tBody">
+          <tr><td colspan="8" class="text-center text-muted py-5">로딩 중...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<div id="pgWrap" class="mt-3 d-flex justify-content-center"></div>
+
+<!-- 생성/수정 모달 -->
+<div class="modal fade" id="formModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold" id="modalTitle">상품 추가</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="fId">
+        <div class="row g-3">
+          <div class="col-8">
+            <label class="form-label small fw-semibold">상품명 <span class="text-danger">*</span></label>
+            <input class="form-control form-control-sm" id="fName" placeholder="오버핏 코튼 자켓">
+          </div>
+          <div class="col-4">
+            <label class="form-label small fw-semibold">카테고리 <span class="text-danger">*</span></label>
+            <select class="form-select form-select-sm" id="fCat"></select>
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Slug <span class="text-danger">*</span></label>
+            <input class="form-control form-control-sm" id="fSlug" placeholder="overfit-cotton-jacket">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">설명</label>
+            <textarea class="form-control form-control-sm" id="fDesc" rows="3"></textarea>
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">기본가 (원) <span class="text-danger">*</span></label>
+            <input type="number" class="form-control form-control-sm" id="fBasePrice" min="0" placeholder="89000">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">할인가 (원)</label>
+            <input type="number" class="form-control form-control-sm" id="fDiscPrice" min="0" placeholder="75000">
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="fActive" checked>
+              <label class="form-check-label small" for="fActive">판매 활성화</label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button class="btn btn-sm btn-primary" id="submitBtn" onclick="submitForm()">저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 이미지 관리 모달 -->
+<div class="modal fade" id="imgModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold">이미지 관리 — <span id="imgProductName" class="text-muted fw-normal"></span></h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small fw-semibold mb-2">현재 이미지</p>
+        <div id="imgList" class="d-flex flex-wrap gap-2 mb-4"><span class="text-muted small">없음</span></div>
+        <hr>
+        <p class="small fw-semibold mb-2">이미지 업로드</p>
+        <input type="hidden" id="imgProductId">
+        <div class="row g-2">
+          <div class="col-12"><input type="file" class="form-control form-control-sm" id="imgFile" accept="image/*"></div>
+          <div class="col-8"><input class="form-control form-control-sm" id="imgAlt" placeholder="대체 텍스트 (alt)"></div>
+          <div class="col-2"><input type="number" class="form-control form-control-sm" id="imgSort" value="0" min="0" placeholder="정렬"></div>
+          <div class="col-2 d-flex align-items-center">
+            <div class="form-check mb-0">
+              <input class="form-check-input" type="checkbox" id="imgThumb">
+              <label class="form-check-label small" for="imgThumb">썸네일</label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">닫기</button>
+        <button class="btn btn-sm btn-success" id="uploadBtn" onclick="uploadImage()">
+          <i class="bi bi-upload me-1"></i>업로드
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 옵션 관리 모달 -->
+<div class="modal fade" id="optionModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold">
+          <i class="bi bi-sliders me-1"></i>옵션 관리 &mdash;
+          <span id="optProductName" class="text-muted fw-normal"></span>
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <input type="hidden" id="optProductId">
+        <ul class="nav nav-tabs px-3 pt-2" id="optTabs">
+          <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabGroups">
+              <i class="bi bi-tags me-1"></i>옵션 그룹 &amp; 값
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSkus">
+              <i class="bi bi-upc-scan me-1"></i>SKU
+            </button>
+          </li>
+        </ul>
+        <div class="tab-content p-3">
+          <!-- 옵션 그룹 탭 -->
+          <div class="tab-pane fade show active" id="tabGroups">
+            <div class="d-flex justify-content-end mb-2">
+              <button class="btn btn-sm btn-primary" onclick="openGroupForm()"><i class="bi bi-plus-lg me-1"></i>그룹 추가</button>
+            </div>
+            <div id="groupFormWrap" class="card mb-3 border-primary d-none">
+              <div class="card-body py-2">
+                <input type="hidden" id="gfId">
+                <div class="row g-2 align-items-end">
+                  <div class="col">
+                    <label class="form-label small fw-semibold mb-1">그룹명 <span class="text-danger">*</span></label>
+                    <input class="form-control form-control-sm" id="gfName" placeholder="예) 색상, 사이즈">
+                  </div>
+                  <div class="col-auto" style="width:110px">
+                    <label class="form-label small fw-semibold mb-1">정렬</label>
+                    <input type="number" class="form-control form-control-sm" id="gfSort" value="0" min="0">
+                  </div>
+                  <div class="col-auto d-flex gap-1">
+                    <button class="btn btn-sm btn-primary" onclick="saveGroup()">저장</button>
+                    <button class="btn btn-sm btn-secondary" onclick="closeGroupForm()">취소</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="groupList">
+              <div class="text-center text-muted py-4 small">그룹이 없습니다.</div>
+            </div>
+          </div>
+          <!-- SKU 탭 -->
+          <div class="tab-pane fade" id="tabSkus">
+            <div class="d-flex justify-content-end mb-2">
+              <button class="btn btn-sm btn-primary" onclick="openSkuForm()"><i class="bi bi-plus-lg me-1"></i>SKU 추가</button>
+            </div>
+            <div id="skuFormWrap" class="card mb-3 border-primary d-none">
+              <div class="card-header py-2 bg-light small fw-semibold" id="skuFormTitle">SKU 추가</div>
+              <div class="card-body py-2">
+                <input type="hidden" id="sfId">
+                <div class="row g-2 mb-2">
+                  <div class="col-4">
+                    <label class="form-label small fw-semibold mb-1">SKU 코드 <span class="text-danger">*</span></label>
+                    <input class="form-control form-control-sm" id="sfCode" placeholder="RED-XL">
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label small fw-semibold mb-1">가격 오버라이드 (원)</label>
+                    <input type="number" class="form-control form-control-sm" id="sfPrice" min="0" placeholder="기본가 사용">
+                  </div>
+                </div>
+                <div id="sfOptionSelects" class="row g-2 mb-2"></div>
+                <div class="d-flex gap-1">
+                  <button class="btn btn-sm btn-primary" onclick="saveSku()">저장</button>
+                  <button class="btn btn-sm btn-secondary" onclick="closeSkuForm()">취소</button>
+                </div>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                  <tr><th>SKU 코드</th><th>옵션 조합</th><th>가격 오버라이드</th><th style="width:90px"></th></tr>
+                </thead>
+                <tbody id="skuTableBody">
+                  <tr><td colspan="4" class="text-center text-muted py-4 small">SKU가 없습니다.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">닫기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 삭제 확인 모달 -->
+<div class="modal fade" id="delModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-body text-center py-4">
+        <i class="bi bi-exclamation-triangle text-danger fs-2 d-block mb-2"></i>
+        <p class="fw-semibold mb-1">상품을 삭제할까요?</p>
+        <p class="text-muted small mb-0" id="delName"></p>
+      </div>
+      <div class="modal-footer py-2 justify-content-center">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button class="btn btn-sm btn-danger" id="delConfirmBtn">삭제</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let curPage = 1;
+let editMode = false;
+let allCategories = [];
+const formModal   = new bootstrap.Modal(document.getElementById('formModal'));
+const imgModal    = new bootstrap.Modal(document.getElementById('imgModal'));
+const delModal    = new bootstrap.Modal(document.getElementById('delModal'));
+const optionModal = new bootstrap.Modal(document.getElementById('optionModal'));
+
+async function loadCategories() {
+  try {
+    const res = await api('GET', '/admin/api/categories');
+    allCategories = res.data;
+    const sel = document.getElementById('catFilter');
+    sel.innerHTML = '<option value="">전체 카테고리</option>' +
+      allCategories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  } catch(e) { /* 무시 */ }
+}
+
+async function loadProducts(page = 1) {
+  curPage = page;
+  const q      = encodeURIComponent(document.getElementById('q').value.trim());
+  const catId  = document.getElementById('catFilter').value;
+  const active = document.getElementById('activeFilter').value;
+  let url = `/admin/api/products?page=${page}&limit=20&search=${q}`;
+  if (catId) url += `&category_id=${catId}`;
+  try {
+    const res = await api('GET', url);
+    let items = res.data;
+    if (active !== '') items = items.filter(p => String(p.is_active) === active);
+    document.getElementById('totalLabel').textContent = `총 ${res.pagination.total}개`;
+    renderTable(items);
+    renderPagination('pgWrap', res.pagination, 'loadProducts');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function renderTable(products) {
+  const tb = document.getElementById('tBody');
+  if (!products.length) {
+    tb.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-5">데이터가 없습니다.</td></tr>';
+    return;
+  }
+  tb.innerHTML = products.map(p => `
+    <tr>
+      <td>${p.thumbnail_url
+        ? `<img src="${esc(p.thumbnail_url)}" class="img-thumb-sm">`
+        : `<div class="img-thumb-sm bg-light d-flex align-items-center justify-content-center text-muted" style="font-size:10px;border-radius:4px;border:1px solid #dee2e6"><i class="bi bi-image"></i></div>`}</td>
+      <td>
+        <div class="fw-semibold">${esc(p.name)}</div>
+        <div class="text-muted small"><code>${esc(p.slug)}</code></div>
+      </td>
+      <td class="small">${esc(p.category_name ?? '-')}</td>
+      <td>${fmtMoney(p.base_price)}</td>
+      <td>${p.discount_price ? fmtMoney(p.discount_price) : '<span class="text-muted">-</span>'}</td>
+      <td>${p.is_active
+        ? '<span class="badge status-active">활성</span>'
+        : '<span class="badge bg-secondary">비활성</span>'}</td>
+      <td class="text-muted small">${fmtDate(p.created_at)}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-secondary py-0 me-1" title="옵션" onclick="openOptions('${p.id}','${esc(p.name)}')">
+          <i class="bi bi-sliders"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-success py-0 me-1" title="이미지" onclick="openImages('${p.id}','${esc(p.name)}')">
+          <i class="bi bi-images"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-primary py-0 me-1" onclick="openEdit('${p.id}')">
+          <i class="bi bi-pencil"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-danger py-0" onclick="openDelete('${p.id}','${esc(p.name)}')">
+          <i class="bi bi-trash"></i>
+        </button>
+      </td>
+    </tr>`).join('');
+}
+
+function fillCatSelect() {
+  document.getElementById('fCat').innerHTML = '<option value="">선택하세요</option>' +
+    allCategories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+}
+
+function openCreate() {
+  editMode = false;
+  clearForm(); fillCatSelect();
+  document.getElementById('modalTitle').textContent = '상품 추가';
+  formModal.show();
+}
+
+async function openEdit(id) {
+  try {
+    const res = await api('GET', `/admin/api/products/${id}`);
+    const p = res.data;
+    editMode = true;
+    clearForm(); fillCatSelect();
+    document.getElementById('modalTitle').textContent  = '상품 수정';
+    document.getElementById('fId').value        = p.id;
+    document.getElementById('fName').value      = p.name;
+    document.getElementById('fSlug').value      = p.slug;
+    document.getElementById('fCat').value       = p.category_id ?? '';
+    document.getElementById('fDesc').value      = p.description ?? '';
+    document.getElementById('fBasePrice').value = p.base_price;
+    document.getElementById('fDiscPrice').value = p.discount_price ?? '';
+    document.getElementById('fActive').checked  = p.is_active;
+    formModal.show();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function clearForm() {
+  ['fId','fName','fSlug','fDesc','fBasePrice','fDiscPrice'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('fActive').checked = true;
+}
+
+async function submitForm() {
+  const btn = document.getElementById('submitBtn');
+  const payload = {
+    name:           document.getElementById('fName').value.trim(),
+    slug:           document.getElementById('fSlug').value.trim(),
+    category_id:    document.getElementById('fCat').value || null,
+    description:    document.getElementById('fDesc').value.trim() || null,
+    base_price:     parseFloat(document.getElementById('fBasePrice').value),
+    discount_price: document.getElementById('fDiscPrice').value ? parseFloat(document.getElementById('fDiscPrice').value) : null,
+    is_active:      document.getElementById('fActive').checked,
+  };
+  if (!payload.name || !payload.slug || !payload.category_id || isNaN(payload.base_price)) {
+    showToast('상품명, slug, 카테고리, 기본가는 필수입니다.', 'error'); return;
+  }
+  btn.disabled = true;
+  try {
+    const id = document.getElementById('fId').value;
+    if (editMode) { await api('PUT', `/admin/api/products/${id}`, payload); showToast('수정되었습니다.'); }
+    else          { await api('POST', '/admin/api/products', payload);       showToast('생성되었습니다.'); }
+    formModal.hide();
+    loadProducts(curPage);
+  } catch(e) { showToast(e.message, 'error'); }
+  finally { btn.disabled = false; }
+}
+
+/* ── 이미지 ── */
+async function openImages(id, name) {
+  document.getElementById('imgProductId').value = id;
+  document.getElementById('imgProductName').textContent = name;
+  document.getElementById('imgFile').value = '';
+  document.getElementById('imgAlt').value  = '';
+  document.getElementById('imgSort').value = '0';
+  document.getElementById('imgThumb').checked = false;
+  await refreshImageList(id);
+  imgModal.show();
+}
+
+async function refreshImageList(pid) {
+  const id = pid || document.getElementById('imgProductId').value;
+  try {
+    const res  = await api('GET', `/admin/api/products/${id}`);
+    const imgs = res.data.images ?? [];
+    const wrap = document.getElementById('imgList');
+    if (!imgs.length) { wrap.innerHTML = '<span class="text-muted small">이미지 없음</span>'; return; }
+    wrap.innerHTML = imgs.map(img => `
+      <div class="text-center" style="position:relative">
+        <img src="${esc(img.image_url)}" class="img-thumb d-block mb-1"
+             onerror="this.src='https://placehold.co/60?text=No+img'">
+        ${img.is_thumbnail ? '<span class="badge bg-primary" style="font-size:.65rem">썸네일</span>' : ''}
+        <div><button class="btn btn-sm btn-outline-danger py-0 mt-1" style="font-size:.7rem"
+                     onclick="deleteImage('${id}','${img.id}')">
+          <i class="bi bi-trash"></i>
+        </button></div>
+      </div>`).join('');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function uploadImage() {
+  const file = document.getElementById('imgFile').files[0];
+  if (!file) { showToast('파일을 선택해주세요.', 'error'); return; }
+  const pid = document.getElementById('imgProductId').value;
+  const fd  = new FormData();
+  fd.append('image',        file);
+  fd.append('alt_text',     document.getElementById('imgAlt').value);
+  fd.append('sort_order',   document.getElementById('imgSort').value);
+  fd.append('is_thumbnail', document.getElementById('imgThumb').checked ? 'true' : 'false');
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = true;
+  try {
+    await api('POST', `/admin/api/products/${pid}/images`, fd, true);
+    showToast('업로드 완료');
+    document.getElementById('imgFile').value = '';
+    await refreshImageList(pid);
+    loadProducts(curPage);
+  } catch(e) { showToast(e.message, 'error'); }
+  finally { btn.disabled = false; }
+}
+
+async function deleteImage(productId, imageId) {
+  if (!confirm('이미지를 삭제할까요?')) return;
+  try {
+    await api('DELETE', `/admin/api/products/${productId}/images/${imageId}`);
+    showToast('삭제되었습니다.');
+    await refreshImageList(productId);
+    loadProducts(curPage);
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+/* ── 상품 삭제 ── */
+function openDelete(id, name) {
+  document.getElementById('delName').textContent = name;
+  const btn = document.getElementById('delConfirmBtn');
+  btn.onclick = async () => {
+    btn.disabled = true;
+    try {
+      await api('DELETE', `/admin/api/products/${id}`);
+      delModal.hide(); showToast('삭제되었습니다.'); loadProducts(curPage);
+    } catch(e) { showToast(e.message, 'error'); }
+    finally { btn.disabled = false; }
+  };
+  delModal.show();
+}
+
+/* ── slug 자동 생성 ── */
+document.getElementById('fName').addEventListener('input', function() {
+  if (!editMode) {
+    document.getElementById('fSlug').value = this.value.toLowerCase().trim()
+      .replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
+  }
+});
+
+(async () => { await loadCategories(); loadProducts(); })();
+
+/* ═══════════════ 옵션 관리 ═══════════════ */
+let optData = { groups: [], skus: [] };
+let groupEditId = null;
+let skuEditId   = null;
+
+async function openOptions(productId, productName) {
+  document.getElementById('optProductId').value = productId;
+  document.getElementById('optProductName').textContent = productName;
+  closeGroupForm(); closeSkuForm();
+  document.querySelector('#optTabs .nav-link').click();
+  optionModal.show();
+  await refreshOptions();
+}
+
+async function refreshOptions() {
+  const pid = document.getElementById('optProductId').value;
+  try {
+    const res = await api('GET', `/admin/api/products/${pid}/options`);
+    optData = res.data;
+    renderGroupList();
+    renderSkuTable();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function renderGroupList() {
+  const wrap = document.getElementById('groupList');
+  if (!optData.groups.length) {
+    wrap.innerHTML = '<div class="text-center text-muted py-4 small">그룹이 없습니다.</div>'; return;
+  }
+  wrap.innerHTML = optData.groups.map(g => `
+    <div class="card mb-2">
+      <div class="card-header py-2 d-flex align-items-center gap-2">
+        <span class="fw-semibold">${esc(g.name)}</span>
+        <span class="badge bg-secondary" style="font-size:.7rem">정렬 ${g.sort_order}</span>
+        <div class="ms-auto d-flex gap-1">
+          <button class="btn btn-sm btn-outline-primary py-0" onclick="openGroupForm('${g.id}','${esc(g.name)}',${g.sort_order})">
+            <i class="bi bi-pencil"></i> 수정
+          </button>
+          <button class="btn btn-sm btn-outline-danger py-0" onclick="confirmDeleteGroup('${g.id}','${esc(g.name)}')">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+      </div>
+      <div class="card-body py-2">
+        ${renderValueRows(g)}
+        <div id="vf_wrap_${g.id}" class="d-none mt-2">
+          <div class="row g-2 align-items-end">
+            <div class="col"><input class="form-control form-control-sm" id="vf_val_${g.id}" placeholder="예) Red, XL"></div>
+            <div class="col-auto" style="width:90px"><input type="number" class="form-control form-control-sm" id="vf_sort_${g.id}" value="0" min="0"></div>
+            <div class="col-auto d-flex gap-1">
+              <button class="btn btn-sm btn-primary" onclick="saveValue('${g.id}')">저장</button>
+              <button class="btn btn-sm btn-secondary" onclick="closeValueForm('${g.id}')">취소</button>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary mt-2 py-0" id="vf_btn_${g.id}" onclick="openValueForm('${g.id}')">
+          <i class="bi bi-plus-lg me-1"></i>값 추가
+        </button>
+      </div>
+    </div>`).join('');
+}
+
+function renderValueRows(group) {
+  if (!group.values.length) return '<p class="text-muted small mb-1">값이 없습니다.</p>';
+  return `<table class="table table-sm mb-1"><tbody>
+    ${group.values.map(v => `
+      <tr id="vrow_${v.id}">
+        <td class="py-1">${esc(v.value)}</td>
+        <td class="py-1 text-muted small">정렬 ${v.sort_order}</td>
+        <td class="py-1 text-end">
+          <button class="btn btn-sm btn-outline-primary py-0 me-1"
+                  onclick="openValueEditForm('${group.id}','${v.id}','${esc(v.value)}',${v.sort_order})">
+            <i class="bi bi-pencil"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-danger py-0"
+                  onclick="confirmDeleteValue('${group.id}','${v.id}','${esc(v.value)}')">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      </tr>
+      <tr id="vedit_${v.id}" class="d-none">
+        <td colspan="3" class="py-1">
+          <div class="row g-2 align-items-end">
+            <div class="col"><input class="form-control form-control-sm" id="vedit_val_${v.id}" value="${esc(v.value)}"></div>
+            <div class="col-auto" style="width:90px"><input type="number" class="form-control form-control-sm" id="vedit_sort_${v.id}" value="${v.sort_order}" min="0"></div>
+            <div class="col-auto d-flex gap-1">
+              <button class="btn btn-sm btn-primary" onclick="saveValueEdit('${group.id}','${v.id}')">저장</button>
+              <button class="btn btn-sm btn-secondary" onclick="closeValueEditForm('${v.id}')">취소</button>
+            </div>
+          </div>
+        </td>
+      </tr>`).join('')}
+  </tbody></table>`;
+}
+
+function openGroupForm(id = null, name = '', sort = 0) {
+  groupEditId = id;
+  document.getElementById('gfId').value   = id ?? '';
+  document.getElementById('gfName').value = name;
+  document.getElementById('gfSort').value = sort;
+  document.getElementById('groupFormWrap').classList.remove('d-none');
+  document.getElementById('gfName').focus();
+}
+function closeGroupForm() {
+  groupEditId = null;
+  document.getElementById('groupFormWrap').classList.add('d-none');
+  document.getElementById('gfName').value = '';
+  document.getElementById('gfSort').value = '0';
+}
+async function saveGroup() {
+  const pid  = document.getElementById('optProductId').value;
+  const name = document.getElementById('gfName').value.trim();
+  const sort = parseInt(document.getElementById('gfSort').value) || 0;
+  if (!name) { showToast('그룹명을 입력하세요.', 'error'); return; }
+  try {
+    if (groupEditId) {
+      await api('PUT', `/admin/api/products/${pid}/option-groups/${groupEditId}`, {name, sort_order: sort});
+      showToast('그룹이 수정되었습니다.');
+    } else {
+      await api('POST', `/admin/api/products/${pid}/option-groups`, {name, sort_order: sort});
+      showToast('그룹이 추가되었습니다.');
+    }
+    closeGroupForm();
+    await refreshOptions();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+async function confirmDeleteGroup(groupId, name) {
+  if (!confirm(`"${name}" 그룹을 삭제할까요?`)) return;
+  const pid = document.getElementById('optProductId').value;
+  try {
+    await api('DELETE', `/admin/api/products/${pid}/option-groups/${groupId}`);
+    showToast('그룹이 삭제되었습니다.');
+    await refreshOptions();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+function openValueForm(groupId) {
+  document.getElementById(`vf_wrap_${groupId}`).classList.remove('d-none');
+  document.getElementById(`vf_btn_${groupId}`).classList.add('d-none');
+  document.getElementById(`vf_val_${groupId}`).focus();
+}
+function closeValueForm(groupId) {
+  document.getElementById(`vf_wrap_${groupId}`).classList.add('d-none');
+  document.getElementById(`vf_btn_${groupId}`).classList.remove('d-none');
+  document.getElementById(`vf_val_${groupId}`).value  = '';
+  document.getElementById(`vf_sort_${groupId}`).value = '0';
+}
+async function saveValue(groupId) {
+  const pid   = document.getElementById('optProductId').value;
+  const value = document.getElementById(`vf_val_${groupId}`).value.trim();
+  const sort  = parseInt(document.getElementById(`vf_sort_${groupId}`).value) || 0;
+  if (!value) { showToast('옵션 값을 입력하세요.', 'error'); return; }
+  try {
+    await api('POST', `/admin/api/products/${pid}/option-groups/${groupId}/values`, {value, sort_order: sort});
+    showToast('값이 추가되었습니다.');
+    await refreshOptions();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+function openValueEditForm(groupId, valueId) {
+  document.getElementById(`vrow_${valueId}`).classList.add('d-none');
+  document.getElementById(`vedit_${valueId}`).classList.remove('d-none');
+}
+function closeValueEditForm(valueId) {
+  document.getElementById(`vrow_${valueId}`).classList.remove('d-none');
+  document.getElementById(`vedit_${valueId}`).classList.add('d-none');
+}
+async function saveValueEdit(groupId, valueId) {
+  const pid   = document.getElementById('optProductId').value;
+  const value = document.getElementById(`vedit_val_${valueId}`).value.trim();
+  const sort  = parseInt(document.getElementById(`vedit_sort_${valueId}`).value) || 0;
+  if (!value) { showToast('옵션 값을 입력하세요.', 'error'); return; }
+  try {
+    await api('PUT', `/admin/api/products/${pid}/option-groups/${groupId}/values/${valueId}`, {value, sort_order: sort});
+    showToast('값이 수정되었습니다.');
+    await refreshOptions();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+async function confirmDeleteValue(groupId, valueId, valueName) {
+  if (!confirm(`"${valueName}" 값을 삭제할까요?`)) return;
+  const pid = document.getElementById('optProductId').value;
+  try {
+    await api('DELETE', `/admin/api/products/${pid}/option-groups/${groupId}/values/${valueId}`);
+    showToast('값이 삭제되었습니다.');
+    await refreshOptions();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+/* SKU */
+function renderSkuTable() {
+  const tb = document.getElementById('skuTableBody');
+  if (!optData.skus.length) {
+    tb.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4 small">SKU가 없습니다.</td></tr>'; return;
+  }
+  tb.innerHTML = optData.skus.map(s => {
+    const combo = Array.isArray(s.option_values)
+      ? s.option_values.map(v => `<span class="badge bg-light text-dark border me-1">${esc(v.group_name)}: ${esc(v.value)}</span>`).join('')
+      : '-';
+    return `<tr>
+      <td><code class="small">${esc(s.sku_code)}</code></td>
+      <td>${combo || '<span class="text-muted small">없음</span>'}</td>
+      <td>${s.price_override != null ? fmtMoney(s.price_override) : '<span class="text-muted small">기본가</span>'}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-primary py-0 me-1" onclick="openSkuForm('${s.id}')">
+          <i class="bi bi-pencil"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-danger py-0" onclick="confirmDeleteSku('${s.id}','${esc(s.sku_code)}')">
+          <i class="bi bi-trash"></i>
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openSkuForm(skuId = null) {
+  skuEditId = skuId;
+  document.getElementById('skuFormTitle').textContent = skuId ? 'SKU 수정' : 'SKU 추가';
+  document.getElementById('sfId').value    = skuId ?? '';
+  document.getElementById('sfCode').value  = '';
+  document.getElementById('sfPrice').value = '';
+  if (skuId) {
+    const sku = optData.skus.find(s => s.id === skuId);
+    if (sku) {
+      document.getElementById('sfCode').value  = sku.sku_code;
+      document.getElementById('sfPrice').value = sku.price_override ?? '';
+    }
+  }
+  const container = document.getElementById('sfOptionSelects');
+  container.innerHTML = optData.groups.map(g => {
+    const cur = skuId ? (optData.skus.find(s => s.id === skuId)?.option_values.find(v => v.group_id === g.id)?.id ?? '') : '';
+    return `<div class="col-auto">
+      <label class="form-label small fw-semibold mb-1">${esc(g.name)}</label>
+      <select class="form-select form-select-sm" id="sf_grp_${g.id}" style="min-width:120px">
+        <option value="">선택 안 함</option>
+        ${g.values.map(v => `<option value="${v.id}" ${v.id === cur ? 'selected' : ''}>${esc(v.value)}</option>`).join('')}
+      </select>
+    </div>`;
+  }).join('');
+  document.getElementById('skuFormWrap').classList.remove('d-none');
+  document.getElementById('sfCode').focus();
+}
+function closeSkuForm() {
+  skuEditId = null;
+  document.getElementById('skuFormWrap').classList.add('d-none');
+}
+async function saveSku() {
+  const pid  = document.getElementById('optProductId').value;
+  const code = document.getElementById('sfCode').value.trim();
+  if (!code) { showToast('SKU 코드를 입력하세요.', 'error'); return; }
+  const priceRaw = document.getElementById('sfPrice').value;
+  const payload = {
+    sku_code:         code,
+    price_override:   priceRaw !== '' ? parseFloat(priceRaw) : null,
+    option_value_ids: optData.groups.map(g => document.getElementById(`sf_grp_${g.id}`)?.value).filter(v => v),
+  };
+  try {
+    if (skuEditId) {
+      await api('PUT', `/admin/api/products/${pid}/skus/${skuEditId}`, payload);
+      showToast('SKU가 수정되었습니다.');
+    } else {
+      await api('POST', `/admin/api/products/${pid}/skus`, payload);
+      showToast('SKU가 추가되었습니다.');
+    }
+    closeSkuForm();
+    await refreshOptions();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+async function confirmDeleteSku(skuId, skuCode) {
+  if (!confirm(`SKU "${skuCode}"를 삭제할까요?`)) return;
+  const pid = document.getElementById('optProductId').value;
+  try {
+    await api('DELETE', `/admin/api/products/${pid}/skus/${skuId}`);
+    showToast('SKU가 삭제되었습니다.');
+    await refreshOptions();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+</script>
+{% endblock %}

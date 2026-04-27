@@ -1,0 +1,171 @@
+{% extends "admin/base.html" %}
+{% block title %} · 사용자{% endblock %}
+{% block nav_users %}active{% endblock %}
+{% block page_title %}<i class="bi bi-people me-2"></i>사용자 관리{% endblock %}
+
+{% block content %}
+<div class="card mb-3">
+  <div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
+    <input id="q" class="form-control form-control-sm" placeholder="이메일 또는 이름 검색" style="max-width:260px"
+           onkeydown="if(event.key==='Enter') loadUsers()">
+    <select id="roleFilter" class="form-select form-select-sm" style="max-width:130px">
+      <option value="">전체 권한</option>
+      <option>USER</option>
+      <option>ADMIN</option>
+    </select>
+    <select id="statusFilter" class="form-select form-select-sm" style="max-width:140px">
+      <option value="">전체 상태</option>
+      <option>ACTIVE</option>
+      <option>INACTIVE</option>
+      <option>WITHDRAWN</option>
+    </select>
+    <button class="btn btn-sm btn-primary" onclick="loadUsers()"><i class="bi bi-search me-1"></i>검색</button>
+    <span class="ms-auto text-muted small" id="totalLabel"></span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>이메일</th><th>이름</th><th>전화번호</th><th>권한</th><th>상태</th><th>가입일</th>
+            <th style="width:80px"></th>
+          </tr>
+        </thead>
+        <tbody id="tBody">
+          <tr><td colspan="7" class="text-center text-muted py-5">로딩 중...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<div id="pgWrap" class="mt-3 d-flex justify-content-center"></div>
+
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title fw-semibold">사용자 수정</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="eId">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">이메일</label>
+          <input class="form-control form-control-sm bg-light" id="eEmail" readonly>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-8">
+            <label class="form-label small fw-semibold">이름 <span class="text-danger">*</span></label>
+            <input class="form-control form-control-sm" id="eName" placeholder="홍길동">
+          </div>
+          <div class="col-4">
+            <label class="form-label small fw-semibold">권한</label>
+            <select class="form-select form-select-sm" id="eRole">
+              <option>USER</option><option>ADMIN</option>
+            </select>
+          </div>
+        </div>
+        <div class="row g-2">
+          <div class="col-8">
+            <label class="form-label small fw-semibold">전화번호</label>
+            <input class="form-control form-control-sm" id="ePhone" placeholder="010-0000-0000">
+          </div>
+          <div class="col-4">
+            <label class="form-label small fw-semibold">상태</label>
+            <select class="form-select form-select-sm" id="eStatus">
+              <option>ACTIVE</option><option>INACTIVE</option><option>WITHDRAWN</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button class="btn btn-sm btn-primary" id="saveBtn" onclick="saveUser()">저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let curPage = 1;
+const modal = new bootstrap.Modal(document.getElementById('editModal'));
+
+async function loadUsers(page = 1) {
+  curPage = page;
+  const q      = encodeURIComponent(document.getElementById('q').value.trim());
+  const role   = document.getElementById('roleFilter').value;
+  const status = document.getElementById('statusFilter').value;
+  try {
+    const res = await api('GET', `/admin/api/users?page=${page}&limit=20&search=${q}&role=${role}&status=${status}`);
+    document.getElementById('totalLabel').textContent = `총 ${res.pagination.total}명`;
+    renderTable(res.data);
+    renderPagination('pgWrap', res.pagination, 'loadUsers');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function roleBadge(r) {
+  return `<span class="badge ${r==='ADMIN'?'badge-role-admin':'badge-role-user'}">${r}</span>`;
+}
+function statusBadge(s) {
+  const cls = {ACTIVE:'status-active',INACTIVE:'status-inactive',WITHDRAWN:'status-withdrawn'}[s]||'bg-secondary';
+  return `<span class="badge ${cls}">${s}</span>`;
+}
+
+function renderTable(users) {
+  const tb = document.getElementById('tBody');
+  if (!users.length) {
+    tb.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5">데이터가 없습니다.</td></tr>';
+    return;
+  }
+  tb.innerHTML = users.map(u => `
+    <tr>
+      <td>${esc(u.email)}</td>
+      <td>${esc(u.name)}</td>
+      <td>${esc(u.phone ?? '-')}</td>
+      <td>${roleBadge(u.role)}</td>
+      <td>${statusBadge(u.status)}</td>
+      <td class="text-muted small">${fmtDate(u.created_at)}</td>
+      <td><button class="btn btn-sm btn-outline-primary py-0" onclick="openEdit('${u.id}')">
+        <i class="bi bi-pencil"></i> 수정</button></td>
+    </tr>`).join('');
+}
+
+async function openEdit(id) {
+  try {
+    const res = await api('GET', `/admin/api/users/${id}`);
+    const u = res.data;
+    document.getElementById('eId').value     = u.id;
+    document.getElementById('eEmail').value  = u.email;
+    document.getElementById('eName').value   = u.name;
+    document.getElementById('ePhone').value  = u.phone ?? '';
+    document.getElementById('eRole').value   = u.role;
+    document.getElementById('eStatus').value = u.status;
+    modal.show();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function saveUser() {
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  try {
+    await api('PUT', `/admin/api/users/${document.getElementById('eId').value}`, {
+      name:   document.getElementById('eName').value.trim(),
+      phone:  document.getElementById('ePhone').value.trim() || null,
+      role:   document.getElementById('eRole').value,
+      status: document.getElementById('eStatus').value,
+    });
+    modal.hide();
+    showToast('저장되었습니다.');
+    loadUsers(curPage);
+  } catch(e) { showToast(e.message, 'error'); }
+  finally { btn.disabled = false; }
+}
+
+loadUsers();
+</script>
+{% endblock %}

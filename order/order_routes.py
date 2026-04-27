@@ -144,7 +144,7 @@ def create_order():
         return jsonify({"error": str(e)}), 500
     finally:
         cur.close()
-        conn.close()
+        db.release_connection(conn)
 
 @orders_bp.route('', methods=['GET'])
 def get_my_orders():
