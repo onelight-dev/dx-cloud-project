@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-orders_bp = Blueprint('orders', __name__)
+orders_bp = Blueprint('orders', __name__, url_prefix="/")
 db = Database()
 
 # 인증 서비스의 주소 (로컬 테스트 시 5001 포트 가정)

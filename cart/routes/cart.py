@@ -3,7 +3,7 @@ from common.decorators import auth_required
 from common.responses import success, error
 from services.cart_service import get_or_create_cart, get_cart_detail, add_cart_item, update_cart_item, delete_cart_item, clear_cart
 
-cart_bp = Blueprint("cart", __name__)
+cart_bp = Blueprint("cart", __name__, url_prefix="/")
 
 
 @cart_bp.get("")

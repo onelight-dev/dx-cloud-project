@@ -3,7 +3,7 @@ from common.decorators import auth_required
 from common.responses import success, error
 from services.user_service import get_user_profile, update_user_profile, soft_delete_user
 
-users_bp = Blueprint("users", __name__)
+users_bp = Blueprint("users", __name__, url_prefix="/")
 
 
 @users_bp.get("/me")

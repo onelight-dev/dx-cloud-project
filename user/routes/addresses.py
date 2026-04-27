@@ -3,7 +3,7 @@ from common.decorators import auth_required
 from common.responses import success, error
 from services.address_service import list_addresses, create_address, update_address, delete_address
 
-addresses_bp = Blueprint("addresses", __name__)
+addresses_bp = Blueprint("addresses", __name__, url_prefix="/address")
 
 
 @addresses_bp.get("")
