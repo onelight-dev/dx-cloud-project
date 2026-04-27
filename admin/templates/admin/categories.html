@@ -75,6 +75,14 @@
           <label class="form-label small fw-semibold">설명</label>
           <textarea class="form-control form-control-sm" id="fDesc" rows="2"></textarea>
         </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">연결 페이지</label>
+          <select class="form-select form-select-sm" id="fPageType">
+            <option value="product">상품 목록 (product-list)</option>
+            <option value="outfit">코디 목록 (outfit-list)</option>
+          </select>
+          <div class="form-text">카테고리 클릭 시 이동할 페이지</div>
+        </div>
         <div class="form-check">
           <input class="form-check-input" type="checkbox" id="fActive" checked>
           <label class="form-check-label small" for="fActive">활성화</label>
@@ -175,8 +183,9 @@ function populateParentSelect(excludeId) {
 
 function clearForm() {
   ['fId','fName','fSlug','fDesc'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('fSort').value  = '0';
-  document.getElementById('fParent').value = '';
+  document.getElementById('fSort').value     = '0';
+  document.getElementById('fParent').value   = '';
+  document.getElementById('fPageType').value = 'product';
   document.getElementById('fActive').checked = true;
 }
 
@@ -196,12 +205,13 @@ async function openEdit(id) {
     clearForm();
     populateParentSelect(id);
     document.getElementById('modalTitle').textContent = '카테고리 수정';
-    document.getElementById('fId').value     = c.id;
-    document.getElementById('fName').value   = c.name;
-    document.getElementById('fSlug').value   = c.slug;
-    document.getElementById('fSort').value   = c.sort_order;
-    document.getElementById('fParent').value = c.parent_id ?? '';
-    document.getElementById('fDesc').value   = c.description ?? '';
+    document.getElementById('fId').value       = c.id;
+    document.getElementById('fName').value     = c.name;
+    document.getElementById('fSlug').value     = c.slug;
+    document.getElementById('fSort').value     = c.sort_order;
+    document.getElementById('fParent').value   = c.parent_id ?? '';
+    document.getElementById('fDesc').value     = c.description ?? '';
+    document.getElementById('fPageType').value = c.page_type ?? 'product';
     document.getElementById('fActive').checked = c.is_active;
     formModal.show();
   } catch(e) { showToast(e.message, 'error'); }
@@ -215,6 +225,7 @@ async function submitForm() {
     sort_order:  parseInt(document.getElementById('fSort').value) || 0,
     parent_id:   document.getElementById('fParent').value || null,
     description: document.getElementById('fDesc').value.trim() || null,
+    page_type:   document.getElementById('fPageType').value,
     is_active:   document.getElementById('fActive').checked,
   };
   if (!payload.name || !payload.slug) { showToast('이름과 slug는 필수입니다.', 'error'); return; }

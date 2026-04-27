@@ -130,7 +130,7 @@ def update_user(uid):
 def list_categories():
     with get_cursor() as cur:
         cur.execute(
-            "SELECT id, name, slug, parent_id, description, sort_order, is_active, created_at, updated_at "
+            "SELECT id, name, slug, parent_id, description, page_type, sort_order, is_active, created_at, updated_at "
             "FROM categories ORDER BY sort_order, name"
         )
         rows = cur.fetchall()
@@ -141,7 +141,7 @@ def list_categories():
 def get_category(cid):
     with get_cursor() as cur:
         cur.execute(
-            "SELECT id, name, slug, parent_id, description, sort_order, is_active, created_at, updated_at "
+            "SELECT id, name, slug, parent_id, description, page_type, sort_order, is_active, created_at, updated_at "
             "FROM categories WHERE id = %s", (str(cid),)
         )
         row = cur.fetchone()
@@ -159,10 +159,11 @@ def create_category():
     try:
         with get_cursor(commit=True) as cur:
             cur.execute(
-                """INSERT INTO categories (name, slug, parent_id, description, sort_order, is_active)
-                   VALUES (%s, %s, %s, %s, %s, %s)
-                   RETURNING id, name, slug, parent_id, description, sort_order, is_active, created_at""",
+                """INSERT INTO categories (name, slug, parent_id, description, page_type, sort_order, is_active)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)
+                   RETURNING id, name, slug, parent_id, description, page_type, sort_order, is_active, created_at""",
                 (name, slug, body.get("parent_id") or None, body.get("description") or None,
+                 body.get("page_type", "product") or "product",
                  int(body.get("sort_order", 0)), bool(body.get("is_active", True))),
             )
             row = cur.fetchone()
@@ -179,6 +180,7 @@ def update_category(cid):
     if "slug"        in body: fields["slug"]        = body["slug"].strip()
     if "parent_id"   in body: fields["parent_id"]   = body["parent_id"] or None
     if "description" in body: fields["description"] = body["description"] or None
+    if "page_type"   in body: fields["page_type"]   = body["page_type"] or "product"
     if "sort_order"  in body: fields["sort_order"]  = int(body["sort_order"])
     if "is_active"   in body: fields["is_active"]   = bool(body["is_active"])
     if not fields: return jsonify({"error": "수정할 필드가 없습니다."}), 400
@@ -187,7 +189,7 @@ def update_category(cid):
         with get_cursor(commit=True) as cur:
             cur.execute(
                 f"UPDATE categories SET {set_clause} WHERE id = %s "
-                f"RETURNING id, name, slug, parent_id, description, sort_order, is_active, updated_at",
+                f"RETURNING id, name, slug, parent_id, description, page_type, sort_order, is_active, updated_at",
                 list(fields.values()) + [str(cid)],
             )
             row = cur.fetchone()
@@ -974,7 +976,7 @@ def banners_page():
 def list_banners():
     with get_cursor() as cur:
         cur.execute(
-            """SELECT id, title, image_url, outfit_id, link_url, sort_order, is_active,
+            """SELECT id, title, description, image_url, outfit_id, link_url, sort_order, is_active,
                       created_at, updated_at
                FROM banners ORDER BY sort_order ASC"""
         )
@@ -984,18 +986,42 @@ def list_banners():
 
 @bp.post("/api/banners")
 def create_banner():
-    body = request.get_json(silent=True) or {}
-    title = (body.get("title") or "").strip()
+    if request.content_type and "multipart" in request.content_type:
+        title       = (request.form.get("title") or "").strip()
+        description = request.form.get("description") or None
+        outfit_id   = request.form.get("outfit_id") or None
+        link_url    = request.form.get("link_url") or None
+        sort_order  = int(request.form.get("sort_order", 0) or 0)
+        is_active   = request.form.get("is_active", "true").lower() not in ("false", "0")
+        image_file  = request.files.get("image")
+    else:
+        body        = request.get_json(silent=True) or {}
+        title       = (body.get("title") or "").strip()
+        description = body.get("description") or None
+        outfit_id   = body.get("outfit_id") or None
+        link_url    = body.get("link_url") or None
+        sort_order  = int(body.get("sort_order", 0))
+        is_active   = bool(body.get("is_active", True))
+        image_file  = None
+
     if not title:
         return jsonify({"error": "제목은 필수입니다."}), 400
+    if not image_file:
+        return jsonify({"error": "이미지는 필수입니다."}), 400
+
+    try:
+        from services.s3_service import upload_image
+        image_url = upload_image(image_file)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
     with get_cursor(commit=True) as cur:
         cur.execute(
-            """INSERT INTO banners (title, outfit_id, link_url, sort_order, is_active)
-               VALUES (%s, %s, %s, %s, %s)
-               RETURNING id, title, image_url, outfit_id, link_url, sort_order, is_active,
+            """INSERT INTO banners (title, description, image_url, outfit_id, link_url, sort_order, is_active)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)
+               RETURNING id, title, description, image_url, outfit_id, link_url, sort_order, is_active,
                          created_at, updated_at""",
-            (title, body.get("outfit_id") or None, body.get("link_url") or None,
-             int(body.get("sort_order", 0)), bool(body.get("is_active", True))),
+            (title, description, image_url, outfit_id, link_url, sort_order, is_active),
         )
         row = cur.fetchone()
     return jsonify({"data": _row(row)}), 201
@@ -1005,18 +1031,19 @@ def create_banner():
 def update_banner(bid):
     body = request.get_json(silent=True) or {}
     fields = {}
-    if "title"      in body: fields["title"]      = body["title"].strip()
-    if "outfit_id"  in body: fields["outfit_id"]  = body["outfit_id"] or None
-    if "link_url"   in body: fields["link_url"]   = body["link_url"] or None
-    if "sort_order" in body: fields["sort_order"] = int(body["sort_order"])
-    if "is_active"  in body: fields["is_active"]  = bool(body["is_active"])
+    if "title"       in body: fields["title"]       = body["title"].strip()
+    if "description" in body: fields["description"] = body["description"] or None
+    if "outfit_id"   in body: fields["outfit_id"]   = body["outfit_id"] or None
+    if "link_url"    in body: fields["link_url"]    = body["link_url"] or None
+    if "sort_order"  in body: fields["sort_order"]  = int(body["sort_order"])
+    if "is_active"   in body: fields["is_active"]   = bool(body["is_active"])
     if not fields:
         return jsonify({"error": "수정할 필드가 없습니다."}), 400
     set_clause = ", ".join(f"{k} = %s" for k in fields) + ", updated_at = NOW()"
     with get_cursor(commit=True) as cur:
         cur.execute(
             f"UPDATE banners SET {set_clause} WHERE id = %s "
-            f"RETURNING id, title, image_url, outfit_id, link_url, sort_order, is_active, updated_at",
+            f"RETURNING id, title, description, image_url, outfit_id, link_url, sort_order, is_active, updated_at",
             list(fields.values()) + [str(bid)],
         )
         row = cur.fetchone()

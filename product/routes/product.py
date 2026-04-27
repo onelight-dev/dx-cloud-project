@@ -76,7 +76,7 @@ def list_products():
             f"""
             SELECT p.id, p.category_id, p.name, p.slug, p.description,
                    p.base_price, p.discount_price, p.is_active, p.created_at, p.updated_at,
-                   c.name AS category_name,
+                   c.name AS category_name, c.slug AS category_slug,
                    (
                        SELECT image_url FROM product_images
                        WHERE product_id = p.id AND is_thumbnail = TRUE

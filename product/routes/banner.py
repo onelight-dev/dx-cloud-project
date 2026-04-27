@@ -22,7 +22,7 @@ def list_banners():
     with get_cursor() as cur:
         cur.execute(
             """
-            SELECT id, title, image_url, outfit_id, link_url, sort_order, is_active
+            SELECT id, title, description, image_url, outfit_id, link_url, sort_order, is_active
             FROM banners
             WHERE is_active = TRUE
             ORDER BY sort_order ASC
@@ -40,7 +40,7 @@ def list_all_banners():
     with get_cursor() as cur:
         cur.execute(
             """
-            SELECT id, title, image_url, outfit_id, link_url, sort_order, is_active,
+            SELECT id, title, description, image_url, outfit_id, link_url, sort_order, is_active,
                    created_at, updated_at
             FROM banners
             ORDER BY sort_order ASC
@@ -56,25 +56,43 @@ def list_all_banners():
 # ─────────────────────────────────────────────
 @bp.post("")
 def create_banner():
-    body = request.get_json(silent=True) or {}
-    title = body.get("title", "").strip()
+    if request.content_type and "multipart" in request.content_type:
+        title       = (request.form.get("title") or "").strip()
+        description = request.form.get("description") or None
+        outfit_id   = request.form.get("outfit_id") or None
+        link_url    = request.form.get("link_url") or None
+        sort_order  = int(request.form.get("sort_order", 0) or 0)
+        is_active   = request.form.get("is_active", "true").lower() not in ("false", "0")
+        image_file  = request.files.get("image")
+    else:
+        body        = request.get_json(silent=True) or {}
+        title       = (body.get("title", "") or "").strip()
+        description = body.get("description") or None
+        outfit_id   = body.get("outfit_id") or None
+        link_url    = body.get("link_url") or None
+        sort_order  = int(body.get("sort_order", 0))
+        is_active   = bool(body.get("is_active", True))
+        image_file  = None
+
     if not title:
         return jsonify({"error": "title은 필수입니다."}), 400
+    if not image_file:
+        return jsonify({"error": "이미지는 필수입니다."}), 400
 
-    outfit_id  = body.get("outfit_id") or None
-    link_url   = body.get("link_url") or None
-    sort_order = int(body.get("sort_order", 0))
-    is_active  = bool(body.get("is_active", True))
+    try:
+        image_url = upload_image(image_file)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
 
     with get_cursor(commit=True) as cur:
         cur.execute(
             """
-            INSERT INTO banners (title, outfit_id, link_url, sort_order, is_active)
-            VALUES (%s, %s, %s, %s, %s)
-            RETURNING id, title, image_url, outfit_id, link_url, sort_order, is_active,
+            INSERT INTO banners (title, description, image_url, outfit_id, link_url, sort_order, is_active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, title, description, image_url, outfit_id, link_url, sort_order, is_active,
                       created_at, updated_at
             """,
-            (title, outfit_id, link_url, sort_order, is_active),
+            (title, description, image_url, outfit_id, link_url, sort_order, is_active),
         )
         row = cur.fetchone()
 
@@ -88,11 +106,12 @@ def create_banner():
 def update_banner(banner_id):
     body = request.get_json(silent=True) or {}
     fields: dict = {}
-    if "title"      in body: fields["title"]      = body["title"].strip()
-    if "outfit_id"  in body: fields["outfit_id"]  = body["outfit_id"] or None
-    if "link_url"   in body: fields["link_url"]   = body["link_url"] or None
-    if "sort_order" in body: fields["sort_order"] = int(body["sort_order"])
-    if "is_active"  in body: fields["is_active"]  = bool(body["is_active"])
+    if "title"       in body: fields["title"]       = body["title"].strip()
+    if "description" in body: fields["description"] = body["description"] or None
+    if "outfit_id"   in body: fields["outfit_id"]   = body["outfit_id"] or None
+    if "link_url"    in body: fields["link_url"]    = body["link_url"] or None
+    if "sort_order"  in body: fields["sort_order"]  = int(body["sort_order"])
+    if "is_active"   in body: fields["is_active"]   = bool(body["is_active"])
 
     if not fields:
         return jsonify({"error": "수정할 필드가 없습니다."}), 400

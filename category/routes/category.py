@@ -28,7 +28,7 @@ def list_categories():
         if parent_id:
             cur.execute(
                 """
-                SELECT id, parent_id, name, slug, description, sort_order, is_active,
+                SELECT id, parent_id, name, slug, description, page_type, sort_order, is_active,
                        created_at, updated_at
                 FROM categories
                 WHERE parent_id = %s
@@ -39,7 +39,7 @@ def list_categories():
         else:
             cur.execute(
                 """
-                SELECT id, parent_id, name, slug, description, sort_order, is_active,
+                SELECT id, parent_id, name, slug, description, page_type, sort_order, is_active,
                        created_at, updated_at
                 FROM categories
                 ORDER BY sort_order, name
@@ -126,6 +126,7 @@ def create_category():
 
     parent_id   = body.get("parent_id") or None
     description = body.get("description")
+    page_type   = body.get("page_type", "product")
     sort_order  = int(body.get("sort_order", 0))
     is_active   = bool(body.get("is_active", True))
 
@@ -133,12 +134,12 @@ def create_category():
         with get_cursor(commit=True) as cur:
             cur.execute(
                 """
-                INSERT INTO categories (parent_id, name, slug, description, sort_order, is_active)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                RETURNING id, parent_id, name, slug, description, sort_order, is_active,
+                INSERT INTO categories (parent_id, name, slug, description, page_type, sort_order, is_active)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id, parent_id, name, slug, description, page_type, sort_order, is_active,
                           created_at, updated_at
                 """,
-                (parent_id, name, slug, description, sort_order, is_active),
+                (parent_id, name, slug, description, page_type, sort_order, is_active),
             )
             row = cur.fetchone()
     except psycopg2.errors.UniqueViolation:
@@ -161,6 +162,7 @@ def update_category(category_id):
     if "slug"        in body: fields["slug"]        = body["slug"].strip()
     if "parent_id"   in body: fields["parent_id"]   = body["parent_id"] or None
     if "description" in body: fields["description"] = body["description"]
+    if "page_type"   in body: fields["page_type"]   = body["page_type"] or "product"
     if "sort_order"  in body: fields["sort_order"]  = int(body["sort_order"])
     if "is_active"   in body: fields["is_active"]   = bool(body["is_active"])
 

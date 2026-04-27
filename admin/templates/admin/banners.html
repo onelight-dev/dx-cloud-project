@@ -58,6 +58,10 @@
             </select>
           </div>
           <div class="col-12">
+            <label class="form-label small fw-semibold">배너 설명</label>
+            <input class="form-control form-control-sm" id="fDesc" placeholder="자켓부터 슈즈까지 한 번에 스타일 완성">
+          </div>
+          <div class="col-12">
             <label class="form-label small fw-semibold">링크 URL <span class="text-muted small">(코디 미선택 시)</span></label>
             <input class="form-control form-control-sm" id="fLink" placeholder="https://...">
           </div>
@@ -67,9 +71,9 @@
               <label class="form-check-label small" for="fActive">활성화</label>
             </div>
           </div>
-          <!-- 이미지 업로드 (수정 시) -->
+          <!-- 이미지 업로드 -->
           <div class="col-12" id="imageSection" style="display:none">
-            <label class="form-label small fw-semibold">배너 이미지</label>
+            <label class="form-label small fw-semibold" id="imageSectionLabel">배너 이미지</label>
             <div class="mb-2">
               <img id="imagePreview" src="" alt="배너 이미지" style="max-width:200px;max-height:100px;object-fit:cover;border-radius:4px;border:1px solid #dee2e6;display:none">
               <div id="imagePlaceholder" class="d-flex align-items-center justify-content-center bg-light text-muted" style="width:200px;height:80px;border-radius:4px;border:1px solid #dee2e6;font-size:12px">
@@ -169,7 +173,7 @@ async function loadOutfitOptions(selectedId) {
 }
 
 function clearForm() {
-  ['fId','fTitle','fLink'].forEach(id => document.getElementById(id).value = '');
+  ['fId','fTitle','fDesc','fLink'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('fSort').value = '0';
   document.getElementById('fActive').checked = true;
   document.getElementById('imageSection').style.display = 'none';
@@ -182,6 +186,8 @@ function openCreate() {
   editMode = false;
   clearForm();
   document.getElementById('modalTitle').textContent = '배너 추가';
+  document.getElementById('imageSection').style.display = 'block';
+  document.getElementById('imageSectionLabel').innerHTML = '배너 이미지 <span class="text-danger">*</span>';
   loadOutfitOptions(null);
   formModal.show();
 }
@@ -196,10 +202,12 @@ async function openEdit(id) {
     document.getElementById('modalTitle').textContent = '배너 수정';
     document.getElementById('fId').value     = b.id;
     document.getElementById('fTitle').value  = b.title;
+    document.getElementById('fDesc').value   = b.description ?? '';
     document.getElementById('fSort').value   = b.sort_order ?? 0;
     document.getElementById('fLink').value   = b.link_url ?? '';
     document.getElementById('fActive').checked = b.is_active;
     document.getElementById('imageSection').style.display = 'block';
+    document.getElementById('imageSectionLabel').textContent = '배너 이미지';
     if (b.image_url) {
       document.getElementById('imagePreview').src = b.image_url;
       document.getElementById('imagePreview').style.display = 'block';
@@ -213,18 +221,34 @@ async function openEdit(id) {
 async function submitForm() {
   const btn = document.getElementById('submitBtn');
   const payload = {
-    title:      document.getElementById('fTitle').value.trim(),
-    outfit_id:  document.getElementById('fOutfit').value || null,
-    link_url:   document.getElementById('fLink').value.trim() || null,
-    sort_order: parseInt(document.getElementById('fSort').value) || 0,
-    is_active:  document.getElementById('fActive').checked,
+    title:       document.getElementById('fTitle').value.trim(),
+    description: document.getElementById('fDesc').value.trim() || null,
+    outfit_id:   document.getElementById('fOutfit').value || null,
+    link_url:    document.getElementById('fLink').value.trim() || null,
+    sort_order:  parseInt(document.getElementById('fSort').value) || 0,
+    is_active:   document.getElementById('fActive').checked,
   };
   if (!payload.title) { showToast('제목은 필수입니다.', 'error'); return; }
   btn.disabled = true;
   try {
     const id = document.getElementById('fId').value;
-    if (editMode) { await api('PUT', `/admin/api/banners/${id}`, payload); showToast('수정되었습니다.'); }
-    else          { await api('POST', '/admin/api/banners', payload);      showToast('생성되었습니다.'); }
+    if (editMode) {
+      await api('PUT', `/admin/api/banners/${id}`, payload);
+      showToast('수정되었습니다.');
+    } else {
+      const file = document.getElementById('imageFile').files[0];
+      if (!file) { showToast('이미지를 선택해주세요.', 'error'); return; }
+      const fd = new FormData();
+      fd.append('title', payload.title);
+      if (payload.description) fd.append('description', payload.description);
+      if (payload.outfit_id)   fd.append('outfit_id', payload.outfit_id);
+      if (payload.link_url)    fd.append('link_url', payload.link_url);
+      fd.append('sort_order', payload.sort_order);
+      fd.append('is_active', payload.is_active);
+      fd.append('image', file);
+      await api('POST', '/admin/api/banners', fd, true);
+      showToast('생성되었습니다.');
+    }
     formModal.hide();
     loadBanners();
   } catch(e) { showToast(e.message, 'error'); }
