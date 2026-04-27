@@ -1,5 +1,4 @@
 from flask import Flask
-from flask_cors import CORS
 from config import Config
 from routes.cart import cart_bp
 from common.responses import error
@@ -7,7 +6,6 @@ from common.responses import error
 
 def create_app():
     app = Flask(__name__)
-    CORS(app, origins="*")
     app.config.from_object(Config)
     app.register_blueprint(cart_bp, url_prefix="/")
 

@@ -1,13 +1,11 @@
 import os
 from flask import Flask, jsonify
-from flask_cors import CORS
 from order_routes import orders_bp
 from dotenv import load_dotenv
 
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, origins="*")
 app.register_blueprint(orders_bp, url_prefix='/')
 
 @app.errorhandler(404)

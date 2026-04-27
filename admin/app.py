@@ -1,14 +1,12 @@
 import atexit
 import os
 from flask import Flask, jsonify
-from flask_cors import CORS
 from database import init_pool, close_pool
 from routes.admin import bp as admin_bp
 
 
 def create_app() -> Flask:
     app = Flask(__name__)
-    CORS(app, origins="*")
     init_pool()
     atexit.register(close_pool)
 

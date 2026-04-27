@@ -1,13 +1,11 @@
 import os
 from flask import Flask, jsonify
-from flask_cors import CORS
 from auth_routes import auth_bp
 from dotenv import load_dotenv
 
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, origins="*")
 app.register_blueprint(auth_bp)
 
 @app.errorhandler(404)
